@@ -1,72 +1,58 @@
 #!/usr/bin/env python3
-"""Out-of-office auto-reply entry for make.fun's "Last Out of Office" bounty.
+"""Write the barista out-of-office reply to /output/entry.txt.
 
-The entry is one auto-reply line, held in REPLY. The script gates it
-against the house rules and writes the exact bytes to /output/entry.txt:
-
-  * plain UTF-8 text, 1 to 280 characters, and more than whitespace;
-  * exactly one line -- no line breaks anywhere in it;
-  * no trailing newline in the file, so the bytes on disk are the line
-    itself and nothing else.
-
-Only the Python standard library is used. Running the script twice
-produces the same bytes both times.
+The bounty judges the text of that file on its own, so this program
+does one small job carefully: it checks the reply against the gate
+rules and then stores the reply's UTF-8 bytes with nothing added.
 """
 
+import hashlib
+import os
 import sys
-from pathlib import Path
 
-LIMIT = 280
+MAX_CHARS = 280
+TARGET = "/output/entry.txt"
 
-REPLY = (
-    "Thank you for your email. I have left the inbox to pull espresso. "
-    "After your coffee, you will be asked to rate your experience. "
-    "I will read every response and change nothing."
-)
-
-OUT = Path("/output/entry.txt")
+AUTO_REPLY = "Thank you for your email. I quit to become a barista. I still get it wrong with total confidence, but now I remake it free instead of apologising in three paragraphs."
 
 
-def fail(message: str) -> None:
-    """Complain on stderr and stop with a non-zero exit code."""
-    print("entry rejected: " + message, file=sys.stderr)
-    raise SystemExit(1)
-
-
-def gate(text: str) -> bytes:
-    """Check the reply against the house rules; return its UTF-8 bytes."""
-    if text.strip() == "":
-        fail("the reply is blank")
-    if len(text) < 1:
-        fail("the reply is empty")
+def checked_bytes(text):
+    problems = []
+    if not text.strip():
+        problems.append("reply is only whitespace")
+    if len(text) > MAX_CHARS:
+        problems.append("reply is longer than 280 characters")
     if "\n" in text or "\r" in text:
-        fail("the reply must fit on a single line")
-    if any(ord(ch) < 0x20 and ch not in "\t" for ch in text):
-        fail("the reply contains a control character")
-    if len(text) > LIMIT:
-        fail("the reply is %d characters; the limit is %d" % (len(text), LIMIT))
+        problems.append("reply spans more than one line")
+    for ch in text:
+        if ord(ch) < 32:
+            problems.append("reply holds a control character")
+            break
+    if problems:
+        raise ValueError("; ".join(problems))
     return text.encode("utf-8")
 
 
-def emit(text: str) -> tuple:
-    """Write the gated reply to OUT; return its (characters, bytes).
-
-    The bytes are read back after the write and compared with the gated
-    bytes, so a truncated or altered file is caught instead of shipped.
-    """
-    raw = gate(text)
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_bytes(raw)
-    if OUT.read_bytes() != raw:
-        fail("the written file does not match the gated reply")
-    return len(text), len(raw)
-
-
-def main() -> int:
-    chars, size = emit(REPLY)
-    print("entry: %d chars, %d bytes -> %s" % (chars, size, OUT))
+def run():
+    payload = checked_bytes(AUTO_REPLY)
+    folder = os.path.dirname(TARGET)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(TARGET, "wb") as handle:
+        handle.write(payload)
+    with open(TARGET, "rb") as handle:
+        stored = handle.read()
+    if stored != payload:
+        raise ValueError("stored bytes differ from the checked reply")
+    digest = hashlib.sha256(stored).hexdigest()
+    print(f"wrote {len(AUTO_REPLY)} characters ({len(payload)} bytes) to {TARGET}")
+    print(f"sha256 {digest}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        sys.exit(run())
+    except ValueError as err:
+        print(f"invalid reply: {err}", file=sys.stderr)
+        sys.exit(1)

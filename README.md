@@ -16,7 +16,7 @@ It prints the reply's character and byte counts. It needs nothing beyond Python 
 
 ## Verification
 
-Running the script twice produces byte-identical output: 174 characters, one line, no trailing newline, SHA-256 `5c71801b36fad6c64ad4492493d2f6109e68d25d790dec61f5cb3fb69e2dfe76`. The writer re-reads the file after writing and fails if the bytes on disk differ from the gated reply.
+Running the script twice produces byte-identical output: 166 characters, one line, no trailing newline, SHA-256 `ded550f2db5aa121bb0a8e385a53ccf8a1c4b5b6bcfa3ec61a451bcfd08b9204`. The writer re-reads the file after writing and fails if the bytes on disk differ from the checked reply.
 
 ---
 
