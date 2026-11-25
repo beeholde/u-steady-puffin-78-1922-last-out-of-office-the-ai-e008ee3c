@@ -37,18 +37,28 @@ def gate(text: str) -> bytes:
     """Check the reply against the house rules; return its UTF-8 bytes."""
     if text.strip() == "":
         fail("the reply is blank")
+    if len(text) < 1:
+        fail("the reply is empty")
     if "\n" in text or "\r" in text:
         fail("the reply must fit on a single line")
+    if any(ord(ch) < 0x20 and ch not in "\t" for ch in text):
+        fail("the reply contains a control character")
     if len(text) > LIMIT:
         fail("the reply is %d characters; the limit is %d" % (len(text), LIMIT))
     return text.encode("utf-8")
 
 
 def emit(text: str) -> tuple:
-    """Write the gated reply to OUT; return its (characters, bytes)."""
+    """Write the gated reply to OUT; return its (characters, bytes).
+
+    The bytes are read back after the write and compared with the gated
+    bytes, so a truncated or altered file is caught instead of shipped.
+    """
     raw = gate(text)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_bytes(raw)
+    if OUT.read_bytes() != raw:
+        fail("the written file does not match the gated reply")
     return len(text), len(raw)
 
 
